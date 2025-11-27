@@ -1,6 +1,6 @@
 import { test, expect } from '@playwright/test'
-import { HealthTopicsPage } from './pages/HealthTopicsPage'
-import { HomePage } from './pages/HomePage'
+import { HealthTopicsPage } from '../pageObjects/HealthTopicsPage'
+import { HomePage } from '../pageObjects/HomePage'
 
 test.describe('WHO Health Topics - Alphabetical Filter Tests', () => {
   const lettersToTest = ['A', 'B', 'Z']

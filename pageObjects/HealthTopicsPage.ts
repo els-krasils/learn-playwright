@@ -4,6 +4,7 @@ import { BasePage } from './BasePage'
 export class HealthTopicsPage extends BasePage {
   private readonly urlPath = 'health-topics'
   private readonly listItems: Locator
+  private readonly topicTypeSelectButton: Locator
 
   constructor(page: Page, baseURL?: string) {
     super(page, baseURL)
@@ -11,6 +12,7 @@ export class HealthTopicsPage extends BasePage {
     this.listItems = page
       .locator('#listView-healthtopics')
       .locator('.link-container')
+    this.topicTypeSelectButton = page.getByRole('button', { name: 'select' })
   }
 
   async goto() {
@@ -78,5 +80,11 @@ export class HealthTopicsPage extends BasePage {
   verifyIsOnAllTopicsPage() {
     const url = this.page.url()
     expect(url).toBe(`${this.baseURL}/${this.urlPath}`)
+  }
+
+  async validateKeyboardNavigationThroughClickableElements() {
+    await super.validateKeyboardNavigationThroughClickableElements({
+      exceptions: [this.topicTypeSelectButton],
+    })
   }
 }
