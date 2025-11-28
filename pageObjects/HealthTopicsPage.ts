@@ -82,8 +82,8 @@ export class HealthTopicsPage extends BasePage {
     expect(url).toBe(`${this.baseURL}/${this.urlPath}`)
   }
 
-  async validateKeyboardNavigationThroughClickableElements() {
-    await super.validateKeyboardNavigationThroughClickableElements({
+  async initializeKeyboardNavigation() {
+    await super.initializeKeyboardNavigation({
       exceptions: [this.topicTypeSelectButton],
     })
   }

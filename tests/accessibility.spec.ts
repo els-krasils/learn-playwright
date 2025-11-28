@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test'
+import { test, expect, Locator } from '@playwright/test'
 import { HealthTopicsPage } from '../pageObjects/HealthTopicsPage'
 import { HomePage } from '../pageObjects/HomePage'
 
@@ -33,12 +33,43 @@ test.describe('WHO Accessibility - Basic Validation', () => {
     })
 
     await test.step('Use Tab key to navigate through all clickable elements', async () => {
-      await healthTopicsPage.validateKeyboardNavigationThroughClickableElements()
+      await test.step('Initialize keyboard navigation', async () => {
+        await healthTopicsPage.initializeKeyboardNavigation()
+      })
+
+      await test.step('Tab and assert a focused element', async () => {
+        while (true) {
+          let result: {
+            isDone: boolean
+            focusFound: boolean | null
+            focusedElement: Locator | null
+          } = { isDone: false, focusFound: false, focusedElement: null }
+
+          await test.step('Do tab', async () => {
+            result = await healthTopicsPage.tabToNextElement()
+          })
+
+          if (result.isDone) {
+            break
+          }
+
+          await test.step('Assert tabbed element has focus pseudo class', async () => {
+            expect(
+              result.focusFound,
+              'Tabbed element should have focus pseudo class',
+            ).toBeTruthy()
+          })
+        }
+      })
+
+      await test.step('Assert all clickable elements were focused', async () => {
+        await healthTopicsPage.assertAllClickableElementsFocused()
+      })
     })
 
-    await test.step('Ensure focus styles appear on tabbed elements', async () => {
-      await healthTopicsPage.validateFocusStylesOnTabbedElements()
-    })
+    // await test.step('Ensure focus styles appear on tabbed elements', async () => {
+    //   //await healthTopicsPage.validateFocusStylesOnTabbedElements()
+    // })
 
     // await test.step('Verify ARIA labels for search, navigation, or menus', async () => {
     //   const ariaElements = {

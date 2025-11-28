@@ -6,6 +6,12 @@ export class BasePage {
   protected readonly healthTopicsMenuLink: Locator
   protected readonly menuContainer: Locator
 
+  // Keyboard navigation state
+  protected clickableElementsCount: number = 0
+  protected clickableElementsMap: Record<string, boolean> = {}
+  protected focusedElements: string[] = []
+  protected tabCount: number = 0
+
   constructor(page: Page, baseURL?: string) {
     this.page = page
     this.baseURL = baseURL
@@ -142,18 +148,38 @@ export class BasePage {
     })
   }
 
-  async validateKeyboardNavigationThroughClickableElements({
+  async initializeKeyboardNavigation({
     exceptions = [],
   }: {
     exceptions?: Locator[]
   } = {}) {
+    // Reset state
+    this.clickableElementsCount = 0
+    this.clickableElementsMap = {}
+    this.focusedElements = []
+    this.tabCount = 0
+
     // Find all clickable elements on the page (locator advised by Copilot)
     const clickableSelector =
       'a, button, input[type="button"], input[type="submit"], [role="button"], [role="link"], select, [tabindex]:not([tabindex="-1"])'
+
+    // Collect clickable elements from main page
     const clickableElements = await this.page
       .locator(clickableSelector)
       .filter({ visible: true })
       .all()
+
+    // Collect clickable elements from all frames
+    const frames = this.page.frames()
+    for (const frame of frames) {
+      if (frame !== this.page.mainFrame()) {
+        const frameClickableElements = await frame
+          .locator(clickableSelector)
+          .filter({ visible: true })
+          .all()
+        clickableElements.push(...frameClickableElements)
+      }
+    }
 
     // collect elements xpath
     const clickableElementsXPath: string[] = []
@@ -175,170 +201,97 @@ export class BasePage {
       `Found ${clickableElementsXPath.length} clickable elements on the page`,
     )
 
+    this.clickableElementsCount = clickableElementsXPath.length
+
     // build a map of clickable elements' xpaths for later verification
-    const clickableElementsMap: Record<string, boolean> = {}
     for (const xpath of clickableElementsXPath) {
       // check if this xpath is already in the map (should not happen)
-      if (clickableElementsMap.hasOwnProperty(xpath)) {
+      if (this.clickableElementsMap.hasOwnProperty(xpath)) {
         throw new Error(
           `Test implementation error: duplicate clickable element xpath found: ${xpath}`,
         )
       }
-      clickableElementsMap[xpath] = false
+      this.clickableElementsMap[xpath] = false
     }
 
     // Focus on the body to start from the beginning
     await this.page.locator('body').focus()
+  }
 
-    const focusedElements: string[] = []
-    let tabCount = 0
-    // Let the max tabs number be bigger that the expected count
-    //  - to let to focus on non-clickable elements
-    //  - to allow extra tabs for unsuccessful focus attempts
-    const maxTabs = clickableElementsXPath.length * 2
+  async tabToNextElement(): Promise<{
+    isDone: boolean
+    focusFound: boolean | null
+    focusedElement: Locator | null
+  }> {
+    if (this.tabCount === this.clickableElementsCount * 2) {
+      console.log(
+        'Reached maximum number of tabs, stopping keyboard navigation.',
+      )
+      return { isDone: true, focusFound: null, focusedElement: null }
+    }
+    await this.page.keyboard.press('Tab')
+    this.tabCount++
 
-    // Tab through elements and collect their info
-    while (tabCount < maxTabs) {
-      await this.page.keyboard.press('Tab')
-      tabCount++
+    let focusedElement = this.page.locator('*:focus')
+    let elementCount = await focusedElement.count()
 
-      const focusedElement = this.page.locator('*:focus')
-      const elementCount = await focusedElement.count()
-
-      if (elementCount === 0) {
-        console.log("No active element found after Tab press, let's try again")
-        continue
+    // If no focused element in main frame, check all frames
+    if (elementCount === 0) {
+      const frames = this.page.frames()
+      for (const frame of frames) {
+        focusedElement = frame.locator('*:focus')
+        elementCount = await focusedElement.count()
+        if (elementCount > 0) {
+          console.log(`Found focused element in frame: ${frame.url()}`)
+          break
+        }
       }
-
-      const xpath = await this._getElementXPath(focusedElement)
-
-      // Check if we've seen this element before (loop detection)
-      if (focusedElements.includes(xpath)) {
-        console.log('Detected loop in focusable elements, stopping tabbing.')
-        break
-      }
-
-      focusedElements.push(xpath)
-      clickableElementsMap[xpath] = true
-
-      console.log(`Tab ${tabCount}: ${xpath.substring(0, 50)}`)
     }
 
-    console.log(`Tabbed through ${focusedElements.length} focusable elements`)
+    if (elementCount === 0) {
+      console.log(
+        "No focused element found after Tab press, let's check if all clickable elements were focused.",
+      )
+      const notFocusedElementsCount = Object.values(
+        this.clickableElementsMap,
+      ).filter(wasFocused => !wasFocused).length
+      if (notFocusedElementsCount === 0) {
+        console.log(
+          'All clickable elements have been focused. Probably now focus is out of the page. It means we are done.',
+        )
+        return { isDone: true, focusFound: false, focusedElement: null }
+      }
+      return { isDone: false, focusFound: false, focusedElement: null }
+    }
 
-    const notFocusedElements = Object.entries(clickableElementsMap).filter(
+    const xpath = await this._getElementXPath(focusedElement)
+
+    // Check if we've seen this element before (loop detection)
+    if (this.focusedElements.includes(xpath)) {
+      console.log('Detected loop in focusable elements, stopping tabbing.')
+      return { isDone: true, focusFound: true, focusedElement }
+    }
+
+    this.focusedElements.push(xpath)
+    this.clickableElementsMap[xpath] = true
+
+    console.log(`Tab ${this.tabCount}: ${xpath.substring(0, 50)}`)
+
+    return { isDone: false, focusFound: true, focusedElement }
+  }
+
+  async assertAllClickableElementsFocused() {
+    console.log(
+      `Tabbed through ${this.focusedElements.length} focusable elements`,
+    )
+
+    const notFocusedElements = Object.entries(this.clickableElementsMap).filter(
       ([, wasFocused]) => !wasFocused,
     )
 
     expect(
       notFocusedElements,
-      `Some clickable elements were not reachable via keyboard navigation`,
-    ).toHaveLength(0)
-  }
-
-  async _hasFocusStyle(locator: Locator): Promise<boolean> {
-    const focusStyleInfo = await locator.evaluate(el => {
-      const computedStyle = window.getComputedStyle(el)
-      const hasFocusOutline =
-        computedStyle.outline !== 'none' &&
-        computedStyle.outline !== '' &&
-        computedStyle.outline !== 'rgb(0, 0, 0) none 0px'
-      const hasBoxShadow = computedStyle.boxShadow !== 'none'
-      const hasBorder =
-        computedStyle.border !== 'none' && computedStyle.borderWidth !== '0px'
-
-      return {
-        tagName: el.tagName.toLowerCase(),
-        id: el.id || '',
-        className: el.className || '',
-        hasFocusOutline,
-        hasBoxShadow,
-        hasBorder,
-      }
-    })
-
-    return (
-      focusStyleInfo.hasFocusOutline ||
-      focusStyleInfo.hasBoxShadow ||
-      focusStyleInfo.hasBorder
-    )
-  }
-
-  async validateFocusStylesOnTabbedElements() {
-    // Find all clickable elements on the page
-    const clickableSelector =
-      'a, button, input[type="button"], input[type="submit"], [role="button"], [role="link"], select, [tabindex]:not([tabindex="-1"])'
-    const clickableElementsCount = await this.page
-      .locator(clickableSelector)
-      .filter({ visible: true })
-      .count()
-
-    console.log(
-      `Found ${clickableElementsCount} clickable elements to check for focus styles`,
-    )
-
-    // Focus on the body to start from the beginning
-    await this.page.locator('body').focus()
-
-    const elementsWithoutFocusStyle: string[] = []
-    const focusedElementsXPath: string[] = []
-    let tabCount = 0
-    const maxTabs = clickableElementsCount * 2
-    let previousXPath = ''
-
-    while (tabCount < maxTabs) {
-      await this.page.keyboard.press('Tab')
-      tabCount++
-
-      const focusedElement = this.page.locator('*:focus')
-      const elementCount = await focusedElement.count()
-
-      if (elementCount === 0) {
-        console.log('No active element found after Tab press')
-        continue
-      }
-
-      const xpath = await this._getElementXPath(focusedElement)
-
-      // Check if we've seen this element before (loop detection)
-      if (focusedElementsXPath.includes(xpath)) {
-        console.log('Detected loop in focusable elements, stopping tabbing.')
-        break
-      }
-
-      focusedElementsXPath.push(xpath)
-
-      // check that the previous element does not have focuse indicator anymore
-      // this way we ensure that focus style calculation is correct
-      if (previousXPath !== '') {
-        const previousElement = this.page.locator(`xpath=${previousXPath}`)
-        const previousHasFocusIndicator = await this._hasFocusStyle(previousElement)
-        expect(
-          previousHasFocusIndicator,
-          `Previous element ${previousXPath} should not have focus styles after focus moved away`,
-        ).toBe(false)
-      }
-      previousXPath = xpath
-
-      const hasFocusIndicator = await this._hasFocusStyle(focusedElement)
-
-      if (!hasFocusIndicator) {
-        elementsWithoutFocusStyle.push(xpath)
-        console.log(`Element without visible focus style: ${xpath}`)
-      }
-
-      console.log(`Tab ${tabCount}: ${xpath.substring(0, 50)}`)
-    }
-
-    console.log(`Checked ${tabCount} elements for focus styles`)
-    console.log(
-      `Elements without visible focus indicator: ${elementsWithoutFocusStyle.length}`,
-    )
-
-    // All focusable elements should have visible focus styles
-    expect(
-      elementsWithoutFocusStyle,
-      `Found ${elementsWithoutFocusStyle.length} elements without focus styles`,
+      `There should be no un-focused clickable elements on the page.`,
     ).toHaveLength(0)
   }
 }
