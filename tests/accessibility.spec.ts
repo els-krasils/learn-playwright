@@ -36,87 +36,9 @@ test.describe('WHO Accessibility - Basic Validation', () => {
       await healthTopicsPage.validateKeyboardNavigationThroughClickableElements()
     })
 
-    // await test.step('Ensure focus styles appear on tabbed elements', async () => {
-    //   // Reset focus
-    //   await page.evaluate(() => {
-    //     ;(document.activeElement as HTMLElement)?.blur?.()
-    //     document.body.focus()
-    //   })
-
-    //   const elementsWithoutFocusStyle: string[] = []
-    //   let checkedElements = 0
-    //   const maxCheck = 20
-
-    //   while (checkedElements < maxCheck) {
-    //     await page.keyboard.press('Tab')
-    //     checkedElements++
-
-    //     const focusStyleInfo = await page.evaluate(() => {
-    //       const el = document.activeElement
-    //       if (!el || el === document.body) return null
-
-    //       const computedStyle = window.getComputedStyle(el)
-    //       const hasFocusOutline =
-    //         computedStyle.outline !== 'none' &&
-    //         computedStyle.outline !== '' &&
-    //         computedStyle.outline !== 'rgb(0, 0, 0) none 0px'
-    //       const hasBoxShadow = computedStyle.boxShadow !== 'none'
-    //       const hasBorder =
-    //         computedStyle.border !== 'none' &&
-    //         computedStyle.borderWidth !== '0px'
-    //       const hasBackground =
-    //         computedStyle.backgroundColor !== 'rgba(0, 0, 0, 0)' &&
-    //         computedStyle.backgroundColor !== 'transparent'
-
-    //       return {
-    //         tagName: el.tagName.toLowerCase(),
-    //         id: el.id || '',
-    //         className: el.className || '',
-    //         hasFocusOutline,
-    //         hasBoxShadow,
-    //         hasBorder,
-    //         hasBackground,
-    //         outline: computedStyle.outline,
-    //         boxShadow: computedStyle.boxShadow,
-    //       }
-    //     })
-
-    //     if (!focusStyleInfo) break
-
-    //     // Element should have some visible focus indicator
-    //     const hasFocusIndicator =
-    //       focusStyleInfo.hasFocusOutline ||
-    //       focusStyleInfo.hasBoxShadow ||
-    //       focusStyleInfo.hasBorder
-
-    //     if (!hasFocusIndicator) {
-    //       const elementDesc = `${focusStyleInfo.tagName}${
-    //         focusStyleInfo.id ? '#' + focusStyleInfo.id : ''
-    //       }${
-    //         focusStyleInfo.className
-    //           ? '.' + focusStyleInfo.className.split(' ')[0]
-    //           : ''
-    //       }`
-    //       elementsWithoutFocusStyle.push(elementDesc)
-    //       console.log(`Element without visible focus style: ${elementDesc}`)
-    //     }
-    //   }
-
-    //   console.log(`Checked ${checkedElements} elements for focus styles`)
-    //   console.log(
-    //     `Elements without visible focus indicator: ${elementsWithoutFocusStyle.length}`,
-    //   )
-
-    //   // All focusable elements should have visible focus styles
-    //   expect(
-    //     elementsWithoutFocusStyle.length,
-    //     `Found ${
-    //       elementsWithoutFocusStyle.length
-    //     } elements without focus styles: ${elementsWithoutFocusStyle
-    //       .slice(0, 5)
-    //       .join(', ')}`,
-    //   ).toBe(0)
-    // })
+    await test.step('Ensure focus styles appear on tabbed elements', async () => {
+      await healthTopicsPage.validateFocusStylesOnTabbedElements()
+    })
 
     // await test.step('Verify ARIA labels for search, navigation, or menus', async () => {
     //   const ariaElements = {

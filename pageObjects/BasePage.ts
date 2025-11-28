@@ -202,26 +202,26 @@ export class BasePage {
       await this.page.keyboard.press('Tab')
       tabCount++
 
-      const activeElement = this.page.locator('*:focus')
-      const elementCount = await activeElement.count()
+      const focusedElement = this.page.locator('*:focus')
+      const elementCount = await focusedElement.count()
 
       if (elementCount === 0) {
         console.log("No active element found after Tab press, let's try again")
         continue
       }
 
-      const uniqueKey = await this._getElementXPath(activeElement)
+      const xpath = await this._getElementXPath(focusedElement)
 
       // Check if we've seen this element before (loop detection)
-      if (focusedElements.includes(uniqueKey)) {
+      if (focusedElements.includes(xpath)) {
         console.log('Detected loop in focusable elements, stopping tabbing.')
         break
       }
 
-      focusedElements.push(uniqueKey)
-      clickableElementsMap[uniqueKey] = true
+      focusedElements.push(xpath)
+      clickableElementsMap[xpath] = true
 
-      console.log(`Tab ${tabCount}: ${uniqueKey.substring(0, 50)}`)
+      console.log(`Tab ${tabCount}: ${xpath.substring(0, 50)}`)
     }
 
     console.log(`Tabbed through ${focusedElements.length} focusable elements`)
@@ -233,6 +233,112 @@ export class BasePage {
     expect(
       notFocusedElements,
       `Some clickable elements were not reachable via keyboard navigation`,
+    ).toHaveLength(0)
+  }
+
+  async _hasFocusStyle(locator: Locator): Promise<boolean> {
+    const focusStyleInfo = await locator.evaluate(el => {
+      const computedStyle = window.getComputedStyle(el)
+      const hasFocusOutline =
+        computedStyle.outline !== 'none' &&
+        computedStyle.outline !== '' &&
+        computedStyle.outline !== 'rgb(0, 0, 0) none 0px'
+      const hasBoxShadow = computedStyle.boxShadow !== 'none'
+      const hasBorder =
+        computedStyle.border !== 'none' && computedStyle.borderWidth !== '0px'
+
+      return {
+        tagName: el.tagName.toLowerCase(),
+        id: el.id || '',
+        className: el.className || '',
+        hasFocusOutline,
+        hasBoxShadow,
+        hasBorder,
+      }
+    })
+
+    return (
+      focusStyleInfo.hasFocusOutline ||
+      focusStyleInfo.hasBoxShadow ||
+      focusStyleInfo.hasBorder
+    )
+  }
+
+  async validateFocusStylesOnTabbedElements() {
+    // Find all clickable elements on the page
+    const clickableSelector =
+      'a, button, input[type="button"], input[type="submit"], [role="button"], [role="link"], select, [tabindex]:not([tabindex="-1"])'
+    const clickableElementsCount = await this.page
+      .locator(clickableSelector)
+      .filter({ visible: true })
+      .count()
+
+    console.log(
+      `Found ${clickableElementsCount} clickable elements to check for focus styles`,
+    )
+
+    // Focus on the body to start from the beginning
+    await this.page.locator('body').focus()
+
+    const elementsWithoutFocusStyle: string[] = []
+    const focusedElementsXPath: string[] = []
+    let tabCount = 0
+    const maxTabs = clickableElementsCount * 2
+    let previousXPath = ''
+
+    while (tabCount < maxTabs) {
+      await this.page.keyboard.press('Tab')
+      tabCount++
+
+      const focusedElement = this.page.locator('*:focus')
+      const elementCount = await focusedElement.count()
+
+      if (elementCount === 0) {
+        console.log('No active element found after Tab press')
+        continue
+      }
+
+      const xpath = await this._getElementXPath(focusedElement)
+
+      // Check if we've seen this element before (loop detection)
+      if (focusedElementsXPath.includes(xpath)) {
+        console.log('Detected loop in focusable elements, stopping tabbing.')
+        break
+      }
+
+      focusedElementsXPath.push(xpath)
+
+      // check that the previous element does not have focuse indicator anymore
+      // this way we ensure that focus style calculation is correct
+      if (previousXPath !== '') {
+        const previousElement = this.page.locator(`xpath=${previousXPath}`)
+        const previousHasFocusIndicator = await this._hasFocusStyle(previousElement)
+        expect(
+          previousHasFocusIndicator,
+          `Previous element ${previousXPath} should not have focus styles after focus moved away`,
+        ).toBe(false)
+      }
+      previousXPath = xpath
+
+      const hasFocusIndicator = await this._hasFocusStyle(focusedElement)
+
+      if (!hasFocusIndicator) {
+        elementsWithoutFocusStyle.push(xpath)
+        console.log(`Element without visible focus style: ${xpath}`)
+      }
+
+      console.log(`Tab ${tabCount}: ${xpath.substring(0, 50)}`)
+    }
+
+    console.log(`Checked ${tabCount} elements for focus styles`)
+    console.log(
+      `Elements without visible focus indicator: ${elementsWithoutFocusStyle.length}`,
+    )
+
+    // All focusable elements should have visible focus styles
+    expect(
+      elementsWithoutFocusStyle,
+      `Found ${elementsWithoutFocusStyle.length} elements without focus styles`,
     ).toHaveLength(0)
   }
 }
