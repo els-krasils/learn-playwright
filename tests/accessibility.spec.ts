@@ -59,6 +59,19 @@ test.describe('WHO Accessibility - Basic Validation', () => {
               'Tabbed element should have focus pseudo class',
             ).toBeTruthy()
           })
+
+          await test.step('Verify ARIA labels for search, navigation, or menus', async () => {
+            const ariaResult =
+              await healthTopicsPage.analyzeAriaLabelsForElement(
+                result.focusedElement!,
+              )
+            if (ariaResult.needsAssertion) {
+              expect(
+                ariaResult.hasAccessibleLabel,
+                `Focused ${ariaResult.elementType} element should have accessible label`,
+              ).toBeTruthy()
+            }
+          })
         }
       })
 
@@ -66,111 +79,6 @@ test.describe('WHO Accessibility - Basic Validation', () => {
         await healthTopicsPage.assertAllClickableElementsFocused()
       })
     })
-
-    // await test.step('Ensure focus styles appear on tabbed elements', async () => {
-    //   //await healthTopicsPage.validateFocusStylesOnTabbedElements()
-    // })
-
-    // await test.step('Verify ARIA labels for search, navigation, or menus', async () => {
-    //   const ariaElements = {
-    //     navigation: [] as string[],
-    //     search: [] as string[],
-    //     menu: [] as string[],
-    //     main: [] as string[],
-    //     banner: [] as string[],
-    //   }
-
-    //   // Check for navigation elements
-    //   const navElements = await page.locator('nav, [role="navigation"]').all()
-    //   for (const nav of navElements) {
-    //     const ariaLabel = await nav.getAttribute('aria-label')
-    //     const ariaLabelledBy = await nav.getAttribute('aria-labelledby')
-    //     const id = await nav.getAttribute('id')
-
-    //     const label = ariaLabel || ariaLabelledBy || id || 'unlabeled'
-    //     ariaElements.navigation.push(label)
-    //   }
-
-    //   // Check for search elements
-    //   const searchElements = await page
-    //     .locator('form[role="search"], [role="search"], input[type="search"]')
-    //     .all()
-    //   for (const search of searchElements) {
-    //     const ariaLabel = await search.getAttribute('aria-label')
-    //     const ariaLabelledBy = await search.getAttribute('aria-labelledby')
-    //     const placeholder = await search.getAttribute('placeholder')
-
-    //     const label = ariaLabel || ariaLabelledBy || placeholder || 'unlabeled'
-    //     ariaElements.search.push(label)
-    //   }
-
-    //   // Check for menu elements
-    //   const menuElements = await page
-    //     .locator('[role="menu"], [role="menubar"]')
-    //     .all()
-    //   for (const menu of menuElements) {
-    //     const ariaLabel = await menu.getAttribute('aria-label')
-    //     const ariaLabelledBy = await menu.getAttribute('aria-labelledby')
-
-    //     const label = ariaLabel || ariaLabelledBy || 'unlabeled'
-    //     ariaElements.menu.push(label)
-    //   }
-
-    //   // Check for main landmark
-    //   const mainElements = await page.locator('main, [role="main"]').all()
-    //   for (const main of mainElements) {
-    //     const ariaLabel = await main.getAttribute('aria-label')
-    //     const ariaLabelledBy = await main.getAttribute('aria-labelledby')
-
-    //     const label = ariaLabel || ariaLabelledBy || 'main content'
-    //     ariaElements.main.push(label)
-    //   }
-
-    //   // Check for banner (header)
-    //   const bannerElements = await page.locator('header, [role="banner"]').all()
-    //   for (const banner of bannerElements) {
-    //     const ariaLabel = await banner.getAttribute('aria-label')
-    //     const ariaLabelledBy = await banner.getAttribute('aria-labelledby')
-
-    //     const label = ariaLabel || ariaLabelledBy || 'banner'
-    //     ariaElements.banner.push(label)
-    //   }
-
-    //   console.log('ARIA landmarks found:')
-    //   console.log(
-    //     `  Navigation: ${
-    //       ariaElements.navigation.length
-    //     } - ${ariaElements.navigation.join(', ')}`,
-    //   )
-    //   console.log(
-    //     `  Search: ${ariaElements.search.length} - ${ariaElements.search.join(
-    //       ', ',
-    //     )}`,
-    //   )
-    //   console.log(
-    //     `  Menu: ${ariaElements.menu.length} - ${ariaElements.menu.join(', ')}`,
-    //   )
-    //   console.log(
-    //     `  Main: ${ariaElements.main.length} - ${ariaElements.main.join(', ')}`,
-    //   )
-    //   console.log(
-    //     `  Banner: ${ariaElements.banner.length} - ${ariaElements.banner.join(
-    //       ', ',
-    //     )}`,
-    //   )
-
-    //   // Should have at least one navigation element
-    //   expect(
-    //     ariaElements.navigation.length,
-    //     'Should have at least one navigation element',
-    //   ).toBeGreaterThan(0)
-
-    //   // Should have at most one main landmark
-    //   expect(
-    //     ariaElements.main.length,
-    //     'Should have at most one main landmark',
-    //   ).toBeLessThanOrEqual(1)
-    // })
 
     // await test.step('Validate text contrast manually (report findings)', async () => {
     //   // This step involves checking contrast ratios

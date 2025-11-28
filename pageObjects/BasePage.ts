@@ -275,7 +275,7 @@ export class BasePage {
     this.focusedElements.push(xpath)
     this.clickableElementsMap[xpath] = true
 
-    console.log(`Tab ${this.tabCount}: ${xpath.substring(0, 50)}`)
+    console.log(`Tab ${this.tabCount}: ${xpath.substring(0, 100)}`)
 
     return { isDone: false, focusFound: true, focusedElement }
   }
@@ -293,5 +293,131 @@ export class BasePage {
       notFocusedElements,
       `There should be no un-focused clickable elements on the page.`,
     ).toHaveLength(0)
+  }
+
+  async analyzeAriaLabelsForElement(focusedElement: Locator): Promise<{
+    needsAssertion: boolean
+    elementType: 'search' | 'navigation' | 'menu' | null
+    hasAccessibleLabel: boolean | null
+  }> {
+    // Get element information
+    const elementInfo = await focusedElement.evaluate(el => {
+      const tagName = el.tagName.toLowerCase()
+      const role = el.getAttribute('role')
+      const ariaLabel = el.getAttribute('aria-label')
+      const ariaLabelledBy = el.getAttribute('aria-labelledby')
+      const type = el.getAttribute('type')
+      const textContent = el.textContent?.trim() || ''
+      const alt = el.getAttribute('alt')
+      const title = el.getAttribute('title')
+
+      // Check if element or its parents are search, navigation, or menu related
+      let currentElement: Element | null = el
+      let isSearchRelated = false
+      let isNavigationRelated = false
+      let isMenuRelated = false
+
+      while (currentElement) {
+        const currentRole = currentElement.getAttribute('role')
+        const currentTagName = currentElement.tagName.toLowerCase()
+
+        if (currentRole === 'search' || type === 'search') {
+          isSearchRelated = true
+        }
+
+        if (
+          currentRole === 'navigation' ||
+          currentRole === 'link' ||
+          currentTagName === 'nav' ||
+          currentTagName === 'a'
+        ) {
+          isNavigationRelated = true
+        }
+
+        if (
+          currentRole === 'menu' ||
+          currentRole === 'menubar' ||
+          currentRole === 'menuitem'
+        ) {
+          isMenuRelated = true
+        }
+
+        currentElement = currentElement.parentElement
+      }
+
+      return {
+        tagName,
+        role,
+        ariaLabel,
+        ariaLabelledBy,
+        type,
+        textContent,
+        alt,
+        title,
+        isSearchRelated,
+        isNavigationRelated,
+        isMenuRelated,
+      }
+    })
+
+    // Only verify ARIA labels for search, navigation, or menu elements
+    if (
+      !(
+        elementInfo.isSearchRelated ||
+        elementInfo.isNavigationRelated ||
+        elementInfo.isMenuRelated
+      )
+    ) {
+      return {
+        needsAssertion: false,
+        elementType: null,
+        hasAccessibleLabel: null,
+      }
+    }
+    const ariaLabel = elementInfo.ariaLabel?.trim() ?? ''
+    const hasAriaLabel = ariaLabel !== ''
+    const ariaLabelledBy = elementInfo.ariaLabelledBy?.trim() ?? ''
+    const hasAriaLabelledBy = ariaLabelledBy !== ''
+    const role = elementInfo.role?.trim() ?? ''
+    const hasValidRole = role !== ''
+    const textContent = elementInfo.textContent?.trim() ?? ''
+    const hasTextContent = textContent !== ''
+    const alt = elementInfo.alt?.trim() ?? ''
+    const hasAlt = alt !== ''
+    const title = elementInfo.title?.trim() ?? ''
+    const hasTitle = title !== ''
+    const foundLabel =
+      ariaLabel ||
+      ariaLabelledBy ||
+      role ||
+      textContent ||
+      alt ||
+      title ||
+      'none'
+
+    // For search, navigation, or menu elements, they should have some form of accessible labeling
+    const hasAccessibleLabel =
+      hasAriaLabel ||
+      hasAriaLabelledBy ||
+      hasValidRole ||
+      hasTextContent ||
+      hasAlt ||
+      hasTitle
+    const elementType = elementInfo.isSearchRelated
+      ? 'search'
+      : elementInfo.isNavigationRelated
+      ? 'navigation'
+      : 'menu'
+
+    if (hasAccessibleLabel) {
+      console.log(
+        `Accessible label found for ${elementType} element (${elementInfo.tagName}): "${foundLabel}"`,
+      )
+    } else {
+      console.log(
+        `Warning: ${elementType} element (${elementInfo.tagName}) lacks accessible label (aria-label, aria-labelledby, role, or title)`,
+      )
+    }
+    return { needsAssertion: true, elementType, hasAccessibleLabel }
   }
 }
