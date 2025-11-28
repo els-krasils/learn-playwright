@@ -106,7 +106,7 @@ export class BasePage {
   }
 
   // taken from https://github.com/firebug/firebug/blob/master/extension/content/firebug/lib/xpath.js
-  async _getElementXPath(locator: Locator): Promise<string> {
+  private async _getElementXPath(locator: Locator): Promise<string> {
     return await locator.evaluate(el => {
       var paths: string[] = []
       var element: any = el
@@ -323,6 +323,7 @@ export class BasePage {
 
         if (currentRole === 'search' || type === 'search') {
           isSearchRelated = true
+          break
         }
 
         if (
@@ -332,6 +333,7 @@ export class BasePage {
           currentTagName === 'a'
         ) {
           isNavigationRelated = true
+          break
         }
 
         if (
@@ -340,6 +342,7 @@ export class BasePage {
           currentRole === 'menuitem'
         ) {
           isMenuRelated = true
+          break
         }
 
         currentElement = currentElement.parentElement
@@ -419,5 +422,230 @@ export class BasePage {
       )
     }
     return { needsAssertion: true, elementType, hasAccessibleLabel }
+  }
+
+  // Helper function to calculate relative luminance
+  private _getRelativeLuminance(r: number, g: number, b: number): number {
+    const [rs, gs, bs] = [r, g, b].map(val => {
+      val = val / 255
+      return val <= 0.03928 ? val / 12.92 : Math.pow((val + 0.055) / 1.055, 2.4)
+    })
+    return 0.2126 * rs + 0.7152 * gs + 0.0722 * bs
+  }
+
+  // Helper function to calculate contrast ratio
+  private _getContrastRatio(
+    color1: { r: number; g: number; b: number },
+    color2: { r: number; g: number; b: number },
+  ): number {
+    const l1 = this._getRelativeLuminance(color1.r, color1.g, color1.b)
+    const l2 = this._getRelativeLuminance(color2.r, color2.g, color2.b)
+    const lighter = Math.max(l1, l2)
+    const darker = Math.min(l1, l2)
+    return (lighter + 0.05) / (darker + 0.05)
+  }
+
+  // Helper function to parse RGB color
+  private _parseRgbColor(rgbString: string): {
+    r: number
+    g: number
+    b: number
+    a: number
+  } | null {
+    const rgbaMatch = rgbString.match(
+      /rgba?\((\d+),\s*(\d+),\s*(\d+)(?:,\s*([\d.]+))?\)/,
+    )
+    if (rgbaMatch) {
+      return {
+        r: parseInt(rgbaMatch[1]),
+        g: parseInt(rgbaMatch[2]),
+        b: parseInt(rgbaMatch[3]),
+        a: rgbaMatch[4] ? parseFloat(rgbaMatch[4]) : 1,
+      }
+    }
+    return null
+  }
+
+  // Helper function to blend colors with alpha transparency
+  private _blendColors(
+    foreground: { r: number; g: number; b: number; a: number },
+    background: { r: number; g: number; b: number },
+  ): { r: number; g: number; b: number } {
+    const alpha = foreground.a
+    return {
+      r: Math.round(foreground.r * alpha + background.r * (1 - alpha)),
+      g: Math.round(foreground.g * alpha + background.g * (1 - alpha)),
+      b: Math.round(foreground.b * alpha + background.b * (1 - alpha)),
+    }
+  }
+
+  async validateTextContrastForElement(focusedElement: Locator) {
+    const contrastData = await focusedElement.evaluate(el => {
+      const styles = window.getComputedStyle(el)
+      const color = styles.color
+      const backgroundColor = styles.backgroundColor
+      const fontSize = parseFloat(styles.fontSize)
+      const fontWeight = styles.fontWeight
+      const tagName = el.tagName.toLowerCase()
+      const textContent = el.textContent?.trim() || ''
+      const hasText = textContent.length > 0
+
+      // Check if element is an icon (common icon patterns)
+      const isIcon =
+        el.classList.contains('icon') ||
+        el.classList.contains('fa') ||
+        el.classList.contains('material-icons') ||
+        tagName === 'svg' ||
+        (tagName === 'i' && textContent.length === 0) ||
+        el.getAttribute('role') === 'img'
+
+      // Get parent chain background colors
+      const backgroundColors: string[] = []
+      let currentElement: Element | null = el
+      let depth = 0
+      const maxDepth = 20
+
+      while (currentElement && depth < maxDepth) {
+        const bg = window.getComputedStyle(currentElement).backgroundColor
+        backgroundColors.push(bg)
+
+        // Stop if we found a non-transparent background
+        if (
+          bg &&
+          bg !== 'rgba(0, 0, 0, 0)' &&
+          bg !== 'transparent' &&
+          !bg.includes('rgba(0, 0, 0, 0)')
+        ) {
+          break
+        }
+
+        currentElement = currentElement.parentElement
+        depth++
+      }
+
+      return {
+        color,
+        backgroundColor,
+        backgroundColors,
+        fontSize,
+        fontWeight,
+        tagName,
+        textContent: textContent.substring(0, 50),
+        hasText,
+        isIcon,
+      }
+    })
+
+    // Skip elements without text or visual content
+    if (!contrastData.hasText && !contrastData.isIcon) {
+      return
+    }
+
+    // Skip if element is invisible
+    if (!(await focusedElement.isVisible())) {
+      return
+    }
+
+    // Parse colors
+    const foregroundColor = this._parseRgbColor(contrastData.color)
+    if (!foregroundColor) {
+      console.log(
+        `Warning: Could not parse foreground color: ${contrastData.color}`,
+      )
+      return
+    }
+
+    // Find effective background color
+    let effectiveBackground: { r: number; g: number; b: number } | null = null
+
+    for (const bgColor of contrastData.backgroundColors) {
+      const parsedBg = this._parseRgbColor(bgColor)
+      if (parsedBg && parsedBg.a > 0) {
+        if (parsedBg.a < 1 && effectiveBackground) {
+          // Blend with existing background
+          effectiveBackground = this._blendColors(parsedBg, effectiveBackground)
+        } else if (parsedBg.a === 1) {
+          effectiveBackground = { r: parsedBg.r, g: parsedBg.g, b: parsedBg.b }
+          break
+        } else {
+          effectiveBackground = { r: parsedBg.r, g: parsedBg.g, b: parsedBg.b }
+        }
+      }
+    }
+
+    // Default to white background if no solid background found
+    if (!effectiveBackground) {
+      console.log(
+        `Warning: No solid background color found for ${contrastData.tagName}, defaulting to white`,
+      )
+      effectiveBackground = { r: 255, g: 255, b: 255 }
+    }
+
+    // Blend foreground with background if it has transparency
+    let finalForeground: { r: number; g: number; b: number }
+    if (foregroundColor.a < 1) {
+      finalForeground = this._blendColors(foregroundColor, effectiveBackground)
+    } else {
+      finalForeground = {
+        r: foregroundColor.r,
+        g: foregroundColor.g,
+        b: foregroundColor.b,
+      }
+    }
+
+    // Calculate contrast ratio
+    const contrastRatio = this._getContrastRatio(
+      finalForeground,
+      effectiveBackground,
+    )
+
+    // Determine required contrast ratio based on WCAG 2.1 guidelines
+    const isLargeText =
+      contrastData.fontSize >= 18 ||
+      (contrastData.fontSize >= 14 &&
+        (contrastData.fontWeight === 'bold' ||
+          parseInt(contrastData.fontWeight) >= 700))
+
+    const requiredRatio = contrastData.isIcon
+      ? 3.0 // WCAG 2.1 AA for graphical objects and UI components
+      : isLargeText
+      ? 3.0 // WCAG 2.1 AA for large text
+      : 4.5 // WCAG 2.1 AA for normal text
+
+    const elementType = contrastData.isIcon
+      ? 'icon'
+      : isLargeText
+      ? 'large text'
+      : 'text'
+
+    const passed = contrastRatio >= requiredRatio
+
+    if (!passed) {
+      console.log(
+        `Contrast FAIL: ${elementType} "${contrastData.textContent}" (${contrastData.tagName})`,
+      )
+      console.log(
+        `  Foreground: rgb(${finalForeground.r}, ${finalForeground.g}, ${finalForeground.b})`,
+      )
+      console.log(
+        `  Background: rgb(${effectiveBackground.r}, ${effectiveBackground.g}, ${effectiveBackground.b})`,
+      )
+      console.log(
+        `  Contrast ratio: ${contrastRatio.toFixed(
+          2,
+        )}:1 (required: ${requiredRatio.toFixed(1)}:1)`,
+      )
+    } else {
+      console.log(
+        `Contrast PASS: ${elementType} "${contrastData.textContent.trim()}" (${
+          contrastData.tagName
+        }) - ${contrastRatio.toFixed(2)}:1`,
+      )
+    }
+
+    expect(
+      contrastRatio,
+      `${elementType} contrast ratio should follow WCAG 2.1 AA guidelines`,
+    ).toBeGreaterThanOrEqual(requiredRatio)
   }
 }
