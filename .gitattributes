@@ -1,0 +1,3 @@
+# Completely disable Git's CRLF feature
+# Line endings (\n) are already configured in VSCode and Prettier settings
+* -text
