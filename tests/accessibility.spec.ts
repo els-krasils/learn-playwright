@@ -3,7 +3,7 @@ import { HealthTopicsPage } from '../pageObjects/HealthTopicsPage'
 import { BasePage } from '../pageObjects/BasePage'
 import { HealthTopicPage } from '../pageObjects/HealthTopicPage'
 
-test.describe('WHO Accessibility - Basic Validation', () => {
+test.describe('Scenario 012: Validate Accessibility Basics', () => {
   const skipBugs = true // set to false to let tests fail on known bugs
   const targetPages: {
     pageName: string

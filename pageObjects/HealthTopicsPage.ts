@@ -6,7 +6,7 @@ export class HealthTopicsPage extends BasePage {
   private readonly listItems: Locator
   private readonly topicTypeSelectButton: Locator
 
-  constructor(page: Page, baseURL?: string) {
+  constructor(page: Page, baseURL: string) {
     super(page, baseURL)
     // note: this selector finds topics including those hidden by the filter
     this.listItems = page
