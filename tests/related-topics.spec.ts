@@ -1,4 +1,4 @@
-import { test, expect, Locator } from '@playwright/test'
+import { test } from '@playwright/test'
 import { HealthTopicPage } from '../pageObjects/HealthTopicPage'
 
 test.describe('Scenario 018: Validate WHO Related Topics / Cross-Linking Functionality', () => {
@@ -6,7 +6,7 @@ test.describe('Scenario 018: Validate WHO Related Topics / Cross-Linking Functio
     await context.grantPermissions(['local-network-access'])
   })
 
-  test.only('Cross-linking between related topics is consistent and error-free', async ({
+  test('Cross-linking between related topics is consistent and error-free', async ({
     page,
     baseURL,
   }) => {

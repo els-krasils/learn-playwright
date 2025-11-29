@@ -43,7 +43,7 @@ test.describe('Scenario 002: Validate Alphabetical Filter (A-Z Topics List)', ()
     `User can filter health topics by alphabetical letters after navigating to all topics`,
     async ({ page, baseURL }) => {
       const doWorkaround = false // set to true to apply workaround for product bug and see how the test is intended to work
-      const healthTopicsPage = new HealthTopicsPage(page, baseURL)
+      const healthTopicsPage = new HealthTopicsPage(page, baseURL!)
 
       await test.step('Go to health topics page', async () => {
         await healthTopicsPage.goto()
