@@ -1,89 +1,151 @@
 import { test, expect, Locator } from '@playwright/test'
 import { HealthTopicsPage } from '../pageObjects/HealthTopicsPage'
-import { HomePage } from '../pageObjects/HomePage'
+import { BasePage } from '../pageObjects/BasePage'
+import { HealthTopicPage } from '../pageObjects/HealthTopicPage'
 
 test.describe('WHO Accessibility - Basic Validation', () => {
+  const skipBugs = true // set to false to let tests fail on known bugs
+  const targetPages: {
+    pageName: string
+    initializer: (page: any, baseURL: string) => Promise<BasePage>
+    knownBugs?: { h1?: boolean; altXPath?: string[]; contrastXPath?: string[] }
+  }[] = [
+    {
+      pageName: 'Health Topics',
+      initializer: async (page: any, baseURL: string) => {
+        const pageObject = new HealthTopicsPage(page, baseURL)
+        await pageObject.goto()
+        return pageObject
+      },
+      knownBugs: { h1: true },
+    },
+    {
+      pageName: 'Health Topic Air pollution',
+      initializer: async (page: any, baseURL: string) => {
+        const pageObject = new HealthTopicPage(page, baseURL)
+        await pageObject.goto('air-pollution')
+        return pageObject
+      },
+      knownBugs: {
+        altXPath: [
+          '/html/body/div[3]/section/div[2]/div/div/div[1]/div/div[6]/div/div[1]/div/figure/img',
+          '/html/body/div[3]/section/div[2]/div/div/div[1]/div/div[6]/div/div[2]/div/figure/img',
+        ],
+        contrastXPath: [
+          '/html/body/div[3]/section/div[2]/div/article/section/div[1]/div[1]/div/div/div/div[1]/ul/li[1]/a',
+          '/html/body/div[3]/section/div[2]/div/article/section/div[1]/div[1]/div/div/div/div[1]/ul/li[2]/a',
+          '/html/body/div[3]/section/div[2]/div/article/section/div[1]/div[1]/div/div/div/div[1]/ul/li[3]/a',
+        ],
+      },
+    },
+  ]
+
   test.beforeEach(async ({ context }) => {
     await context.grantPermissions(['local-network-access'])
   })
 
-  test.only('Scenario 012: Validate Accessibility Basics on Health Topics page', async ({
-    page,
-    baseURL,
-  }) => {
-    const skipBugs = true // Set to true to skip known bugs and ensure other asserts pass
-    const healthTopicsPage = new HealthTopicsPage(page, baseURL)
+  for (const targetPage of targetPages) {
+    test(`Scenario 012: Validate Accessibility Basics on ${targetPage.pageName} page`, async ({
+      page,
+      baseURL,
+    }) => {
+      const pageObject = await targetPage.initializer(page, baseURL!)
 
-    await test.step('Navigate to Health Topics page', async () => {
-      await healthTopicsPage.goto()
-    })
+      // this test is based on page scanning approach, lots of array locators without auto-waiting
+      // also this site does not have any load spinners
+      // thus this is a good example of when we have to use hardcoded timeouts
+      await page.waitForTimeout(1000)
 
-    await test.step('Check images contain valid alt attributes', async () => {
-      await healthTopicsPage.validateAccessibilityImagesAlt()
-    })
-
-    if (!skipBugs) {
-      await test.step('Verify page has a single H1 heading', async () => {
-        await healthTopicsPage.validateAccessibilityH1Heading()
-      })
-    }
-
-    await test.step('Verify headings follow hierarchy (H1 > H2 > H3)', async () => {
-      await healthTopicsPage.validateAccessibilityHeadingHierarchy()
-    })
-
-    await test.step('Use Tab key to navigate through all clickable elements', async () => {
-      await test.step('Initialize keyboard navigation', async () => {
-        await healthTopicsPage.initializeKeyboardNavigation()
+      let altExceptions: string[] = []
+      if (skipBugs && targetPage.knownBugs?.altXPath !== undefined) {
+        altExceptions = targetPage.knownBugs?.altXPath!
+      }
+      await test.step('Check images contain valid alt attributes', async () => {
+        await pageObject.validateAccessibilityImagesAlt(altExceptions)
       })
 
-      await test.step('Tab and assert a focused element', async () => {
-        while (true) {
-          let result: {
-            isDone: boolean
-            focusFound: boolean | null
-            focusedElement: Locator | null
-          } = { isDone: false, focusFound: false, focusedElement: null }
+      if (!(skipBugs && targetPage.knownBugs?.h1 === true)) {
+        await test.step('Verify page has a single H1 heading', async () => {
+          await pageObject.validateAccessibilityH1Heading()
+        })
+      }
 
-          await test.step('Do tab', async () => {
-            result = await healthTopicsPage.tabToNextElement()
-          })
+      await test.step('Verify headings follow hierarchy (H1 > H2 > H3)', async () => {
+        await pageObject.validateAccessibilityHeadingHierarchy()
+      })
 
-          if (result.isDone) {
-            break
-          }
+      await test.step('Use Tab key to navigate through all clickable elements', async () => {
+        await test.step('Initialize keyboard navigation', async () => {
+          await pageObject.initializeKeyboardNavigation()
+        })
 
-          await test.step('Assert tabbed element has focus pseudo class', async () => {
-            expect(
-              result.focusFound,
-              'Tabbed element should have focus pseudo class',
-            ).toBeTruthy()
-          })
+        await test.step('Tab and assert a focused element', async () => {
+          while (true) {
+            let result: {
+              isDone: boolean
+              focusFound: boolean | null
+              focusedElement: Locator | null
+              xPath: string | null
+            } = {
+              isDone: false,
+              focusFound: false,
+              focusedElement: null,
+              xPath: null,
+            }
 
-          await test.step('Verify ARIA labels for search, navigation, or menus', async () => {
-            const ariaResult =
-              await healthTopicsPage.analyzeAriaLabelsForElement(
+            await test.step('Do tab', async () => {
+              result = await pageObject.tabToNextElement()
+            })
+
+            if (result.isDone) {
+              break
+            }
+
+            await test.step('Assert tabbed element has focus pseudo class', async () => {
+              expect(
+                result.focusFound,
+                `Tabbed element should have focus pseudo class: ${result.xPath}`,
+              ).toBeTruthy()
+            })
+
+            await test.step('Verify ARIA labels for search, navigation, or menus', async () => {
+              const ariaResult = await pageObject.analyzeAriaLabelsForElement(
                 result.focusedElement!,
               )
-            if (ariaResult.needsAssertion) {
-              expect(
-                ariaResult.hasAccessibleLabel,
-                `Focused ${ariaResult.elementType} element should have accessible label`,
-              ).toBeTruthy()
+              if (ariaResult.needsAssertion) {
+                expect(
+                  ariaResult.hasAccessibleLabel,
+                  `Focused element should have accessible label: ${result.xPath}`,
+                ).toBeTruthy()
+              }
+            })
+
+            if (
+              !(
+                skipBugs &&
+                targetPage.knownBugs?.contrastXPath?.includes(result.xPath!)
+              )
+            ) {
+              await test.step('Validate text contrast', async () => {
+                const contrastResult =
+                  await pageObject.analyzeTextContrastForElement(
+                    result.focusedElement!,
+                  )
+                if (contrastResult.needsAssertion) {
+                  expect(
+                    contrastResult.contrastRatio!,
+                    `Text contrast ratio for element: ${result.xPath}`,
+                  ).toBeGreaterThanOrEqual(contrastResult.requiredRatio!)
+                }
+              })
             }
-          })
+          }
+        })
 
-          await test.step('Validate text contrast', async () => {
-            await healthTopicsPage.validateTextContrastForElement(
-              result.focusedElement!,
-            )
-          })
-        }
-      })
-
-      await test.step('Assert all clickable elements were focused', async () => {
-        await healthTopicsPage.assertAllClickableElementsFocused()
+        await test.step('Assert all clickable elements were focused', async () => {
+          await pageObject.assertAllClickableElementsFocused()
+        })
       })
     })
-  })
+  }
 })

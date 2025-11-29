@@ -84,7 +84,7 @@ export class HealthTopicsPage extends BasePage {
 
   async initializeKeyboardNavigation() {
     await super.initializeKeyboardNavigation({
-      exceptions: [this.topicTypeSelectButton],
+      exceptions: [this.topicTypeSelectButton], // this button is not focused by Tab key by design
     })
   }
 }
