@@ -10,12 +10,16 @@ export class HealthTopicPage extends BasePage {
     super(page, baseURL)
     const relatedTopicsHeadingText = 'Related health topics'
     this.relatedTopicsSection = page
+      // the section is currently a div with class 'row' that contains a heading or paragraph with specific text
       .locator('.row')
+      // unfortunately, there is also a parent .row that contains the same heading, so we need to filter it out
+      // the parent row contains the whole body content, so we can exclude it by some seemingly unique child
       .filter({
         hasNot: page.locator('*[data-placeholder-label="Body content"]'),
       })
       .filter({
         has: page
+          // on different topics pages, this heading may be either a paragraph or a heading element
           .getByRole('paragraph').or(page.getByRole('heading'))
           .filter({ hasText: relatedTopicsHeadingText }),
       })
