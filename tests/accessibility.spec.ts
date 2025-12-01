@@ -3,6 +3,18 @@ import { HealthTopicsPage } from '../pageObjects/HealthTopicsPage'
 import { BasePage } from '../pageObjects/BasePage'
 import { HealthTopicPage } from '../pageObjects/HealthTopicPage'
 
+// Scenario 012: Validate Accessibility Basics
+// Purpose: Ensure WHO pages follow accessibility best practices.
+// Precondition: On Health Topics or topic detail page.
+// Steps:
+// 1.	Check images contain valid alt attributes.
+// 2.	Verify headings follow hierarchy (H1 > H2 > H3).
+// 3.	Use Tab key to navigate through all clickable elements.
+// 4.	Ensure focus styles appear on tabbed elements.
+// 5.	Verify ARIA labels for search, navigation, or menus.
+// 6.	Validate text contrast manually.
+// Expected Result: Page meets essential accessibility expectations.
+
 test.describe('Scenario 012: Validate Accessibility Basics', () => {
   const skipBugs = true // set to false to let tests fail on known bugs
   const targetPages: {

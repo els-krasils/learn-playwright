@@ -2,6 +2,18 @@ import { test, expect } from '@playwright/test'
 import { HealthTopicsPage } from '../pageObjects/HealthTopicsPage'
 import { HomePage } from '../pageObjects/HomePage'
 
+// Scenario 002: Validate Alphabetical Filter (A–Z Topics List)
+// Purpose: Confirm alphabetical filtering works.
+// Precondition: On Health Topics page.
+// Steps:
+// 1.	Click on the alphabetical filter letter "A".
+// 2.	Verify the page scrolls or reloads showing topics starting with A.
+// 3.	Repeat for 2–3 letters (e.g., B, C, D).
+// 4.	Validate that the topics shown correspond to the selected letter.
+// 5.	Verify no irrelevant topics appear in filtered results.
+// 6.	Clear filter (if applicable) or navigate back.
+// Expected Result: Topics correctly filter by selected alphabet.
+
 test.describe('Scenario 002: Validate Alphabetical Filter (A-Z Topics List)', () => {
   const lettersToTest = ['A', 'B', 'Z']
 
